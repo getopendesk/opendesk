@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: opendesk
+      POSTGRES_PASSWORD: opendesk
+      POSTGRES_DB: opendesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: client-builder
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://server:8000
+      - PORT=5173
+    depends_on:
+      - server
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+
+  landing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: landing-builder
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    volumes:
+      - ./landing:/app/landing
+      - /app/landing/node_modules
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server-builder
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://opendesk:opendesk@postgres:5432/opendesk
+      - PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+
+volumes:
+  postgres_data:
